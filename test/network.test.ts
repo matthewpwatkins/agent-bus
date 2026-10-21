@@ -31,7 +31,13 @@ test("hardened profile: discovery/NAT/reporting off, single pinned relay", () =>
   assert.ok(!out.includes("dynamic"), "no dynamic relay pool");
 });
 
-test("peer address goes through the pinned relay, addressed by device id", () => {
-  assert.deepEqual(relayAddressFor(PROFILE, "DEVICEID"), ["relay://203.0.113.7:22067/?id=DEVICEID"]);
-  assert.deepEqual(relayAddressFor(null, "DEVICEID"), ["dynamic"]);
+test("peer address goes through the pinned relay, addressed by the RELAY's id", () => {
+  // ?id= is the relay server's device ID (Syncthing verifies it on dial);
+  // using the peer's device ID here breaks every session ("relay id does
+  // not match") -- regression test for the 2026-10-20 live failure.
+  const withId: NetworkProfile = { ...PROFILE, relay: "relay://203.0.113.7:22067/?id=RELAYID" };
+  assert.deepEqual(relayAddressFor(withId, "PEERDEVICEID"), ["relay://203.0.113.7:22067/?id=RELAYID"]);
+  // No known relay ID: bare relay address (Syncthing skips the ID check).
+  assert.deepEqual(relayAddressFor(PROFILE, "PEERDEVICEID"), ["relay://203.0.113.7:22067"]);
+  assert.deepEqual(relayAddressFor(null, "PEERDEVICEID"), ["dynamic"]);
 });

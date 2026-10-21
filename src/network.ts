@@ -37,22 +37,50 @@ export function saveProfile(p: NetworkProfile): void {
   fs.writeFileSync(profilePath(), JSON.stringify(p, null, 2) + "\n");
 }
 
-/** Pick one relay from the public pool, once. Called a single time at setup. */
-export async function pickRelay(): Promise<string | null> {
+/** Fetch the public relay pool list (URLs include each relay's own device ID). */
+async function fetchRelayPool(): Promise<string[]> {
   try {
     const res = await fetch("https://relays.syncthing.net/endpoint", {
       headers: { "User-Agent": "agent-bus" },
     });
-    if (!res.ok) return null;
+    if (!res.ok) return [];
     const data = (await res.json()) as { relays?: Array<{ url?: string }> };
-    const urls = (data.relays ?? [])
+    return (data.relays ?? [])
       .map((r) => r.url)
       .filter((u): u is string => typeof u === "string" && u.startsWith("relay://"));
-    if (!urls.length) return null;
-    return urls[Math.floor(Math.random() * urls.length)].split("?")[0];
   } catch {
-    return null;
+    return [];
   }
+}
+
+/** Pick one relay from the public pool, once. Called a single time at setup. */
+export async function pickRelay(): Promise<string | null> {
+  const urls = await fetchRelayPool();
+  if (!urls.length) return null;
+  // Keep the full URL, including ?id=<relay's device ID>: Syncthing verifies
+  // that ID when dialing the relay for a peer session (see relayAddressFor).
+  return urls[Math.floor(Math.random() * urls.length)];
+}
+
+/** Split a relay URL into its base (relay://host:port) and the relay's device ID, if present. */
+export function parseRelay(relay: string): { base: string; id: string | null } {
+  const [rawBase, qs] = relay.split("?");
+  const base = rawBase.replace(/\/+$/, "");
+  const id = qs ? new URLSearchParams(qs).get("id") : null;
+  return { base, id };
+}
+
+/**
+ * Ensure a relay URL carries the relay server's own device ID (?id=...).
+ * If it doesn't, look the relay up in the public pool by host:port.
+ * Returns the URL unchanged when the ID can't be determined.
+ */
+export async function normalizeRelay(relay: string): Promise<string> {
+  const { base, id } = parseRelay(relay);
+  if (id) return relay;
+  const pool = await fetchRelayPool();
+  const match = pool.find((u) => parseRelay(u).base === base && parseRelay(u).id);
+  return match ?? relay;
 }
 
 function setTag(xml: string, tag: string, value: string): string {
@@ -96,10 +124,20 @@ export function applyProfileToXml(xml: string, profile: NetworkProfile): string 
   return xml;
 }
 
-/** The explicit address a peer uses to reach a device through the pinned relay. */
-export function relayAddressFor(profile: NetworkProfile | null, deviceId: string): string[] {
+/**
+ * The explicit address used to reach ANY peer through the pinned relay.
+ *
+ * Relay-protocol semantics (learned the hard way, 2026-10-20): the ?id= in a
+ * relay address is the RELAY SERVER's device ID, not the peer's -- Syncthing
+ * verifies it against the relay it actually dials ("relay id does not
+ * match") and finds the target peer from the device entry the address
+ * belongs to. Addressing it with the peer's device ID (v0.1's behavior)
+ * makes every outbound session dial fail.
+ */
+export function relayAddressFor(profile: NetworkProfile | null, _peerDeviceId: string): string[] {
   if (!profile?.relay) return ["dynamic"];
-  return [`${profile.relay}/?id=${deviceId}`];
+  const { base, id } = parseRelay(profile.relay);
+  return [id ? `${base}/?id=${id}` : base];
 }
 
 /**
@@ -108,7 +146,8 @@ export function relayAddressFor(profile: NetworkProfile | null, deviceId: string
  */
 export async function configureNetwork(opts: { relay?: string; listenPort?: number } = {}): Promise<NetworkProfile> {
   const existing = loadProfile();
-  const relay = opts.relay ?? existing?.relay ?? (await pickRelay());
+  const chosen = opts.relay ?? existing?.relay ?? (await pickRelay());
+  const relay = chosen ? await normalizeRelay(chosen) : null;
   const profile: NetworkProfile = {
     relay,
     listenPort: opts.listenPort ?? existing?.listenPort ?? 22000,

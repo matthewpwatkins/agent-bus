@@ -36,7 +36,7 @@ Usage:
   agentbus share invite <name>               Print the invite block to send your partner
   agentbus share sync <name>                 (Re)register a share with the running Syncthing
   agentbus share set-peer <name> --peer-device-id ID
-                                             Record the partner's device ID (from their `agentbus id`) and re-sync
+                                             Record the partner's device ID (from their agentbus id) and re-sync
   agentbus share list
 
   agentbus setup-messaging --share <name>    Listener service + Muse hook script

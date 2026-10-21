@@ -38,11 +38,14 @@ export async function listen(share: Share): Promise<void> {
   process.stderr.write(`agentbus listener: watching folder ${share.folderId} inbox ${inbox}\n`);
   for (;;) {
     try {
-      const events = await pollEvents(cfg, since, ["ItemFinished"]);
+      // ItemFinished = a remote file finished pulling (the normal arrival
+      // path). LocalChangeDetected = a file dropped into the folder locally
+      // (manual drops, tests). Handle both shapes.
+      const events = await pollEvents(cfg, since, ["ItemFinished", "LocalChangeDetected"]);
       for (const ev of events) {
         since = Math.max(since, ev.id);
         const folder = String(ev.data.folder ?? "");
-        const item = String(ev.data.item ?? "");
+        const item = String(ev.data.item ?? ev.data.path ?? "");
         const type = String(ev.data.type ?? "");
         if (folder !== share.folderId || type !== "file") continue;
         if (!item.startsWith(`inbox-${share.me}/`) || item.includes("/processed/")) continue;

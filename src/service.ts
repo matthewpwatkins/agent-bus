@@ -85,6 +85,7 @@ After=agentbus-syncthing.service network.target
 
 [Service]
 Environment=AGENTBUS_HOME=${agentbusHome()}
+Environment=AGENTBUS_SYNCTHING_HOME=${syncthingHome()}
 ExecStart=${process.execPath} ${cliJsPath()} listen --share ${share.name}
 Restart=always
 RestartSec=5
@@ -113,6 +114,7 @@ WantedBy=default.target
 set -euo pipefail
 source "$HATCH_HOOK_RUNTIME"
 export AGENTBUS_HOME="${agentbusHome()}"
+export AGENTBUS_SYNCTHING_HOME="${syncthingHome()}"
 NEW="$(${process.execPath} ${cliDir}/cli.js check --share ${share.name} --mark-seen 2>/dev/null || true)"
 if [ -n "$NEW" ]; then
   wake "new Agent Bus message(s) in share ${share.name}" "{\\"files\\": \\"$(echo "$NEW" | paste -sd, -)\\"}"

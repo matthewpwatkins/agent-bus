@@ -20,14 +20,26 @@ interface StConfig {
   deviceId: string;
 }
 
+/**
+ * This machine's own device ID, from the Syncthing binary itself.
+ * Do NOT guess it from config.xml: the first <device> element there is not
+ * guaranteed to be the local device (real-world configs list peers first),
+ * and using a peer's ID as your own silently breaks folder registration.
+ */
+export function ownDeviceId(home = syncthingHome()): string {
+  const out = execFileSync(syncthingBinary(), ["device-id", "-H", home], { encoding: "utf8" });
+  const id = out.trim().split("\n")[0];
+  if (!/^[A-Z2-7-]{50,}$/.test(id)) throw new Error(`Unexpected device-id output: ${out}`);
+  return id;
+}
+
 /** Parse the few fields we need out of Syncthing's config.xml (no XML dep). */
 export function readStConfig(home = syncthingHome()): StConfig {
   const xml = fs.readFileSync(configXmlPath(home), "utf8");
   const apiKey = xml.match(/<apikey>([^<]+)<\/apikey>/)?.[1];
   const address = xml.match(/<gui[^>]*>[\s\S]*?<address>([^<]+)<\/address>/)?.[1] ?? "127.0.0.1:8384";
-  const deviceId = xml.match(/<device id="([^"]+)"/)?.[1];
-  if (!apiKey || !deviceId) throw new Error(`Could not parse apikey/device id from ${configXmlPath(home)}`);
-  return { apiKey, address, deviceId };
+  if (!apiKey) throw new Error(`Could not parse apikey from ${configXmlPath(home)}`);
+  return { apiKey, address, deviceId: ownDeviceId(home) };
 }
 
 /** Generate a Syncthing identity in our home dir if none exists yet. */
@@ -43,7 +55,7 @@ export function ensureIdentity(): void {
 
 export function myDeviceId(): string {
   ensureIdentity();
-  return readStConfig().deviceId;
+  return ownDeviceId();
 }
 
 export function syncthingVersion(): string | null {

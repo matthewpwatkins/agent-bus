@@ -35,6 +35,8 @@ Usage:
   agentbus share join --name <slug> --me <name> --peer <name> --folder-id ID --peer-device-id ID
   agentbus share invite <name>               Print the invite block to send your partner
   agentbus share sync <name>                 (Re)register a share with the running Syncthing
+  agentbus share set-peer <name> --peer-device-id ID
+                                             Record the partner's device ID (from their `agentbus id`) and re-sync
   agentbus share list
 
   agentbus setup-messaging --share <name>    Listener service + Muse hook script
@@ -187,6 +189,20 @@ async function main(): Promise<void> {
           peerName: share.peer,
         });
         process.stdout.write(r.applied ? `Share "${share.name}" registered with Syncthing.\n` : `Not applied: ${r.reason}\n`);
+      } else if (sub === "set-peer") {
+        const { upsertShare } = await import("./config.js");
+        const { addShareToSyncthing } = await import("./syncthing.js");
+        const share = getShare(positional[1] ?? need(flags, "name"));
+        share.peerDeviceId = need(flags, "peer-device-id");
+        upsertShare(share);
+        const r = await addShareToSyncthing({
+          folderId: share.folderId,
+          folderPath: share.folderPath,
+          label: `agent-bus ${share.name}`,
+          peerDeviceId: share.peerDeviceId,
+          peerName: share.peer,
+        });
+        process.stdout.write(`Peer device for "${share.name}" set to ${share.peerDeviceId}. Syncthing: ${r.applied ? "registered" : "not applied (" + r.reason + ")"}.\n`);
       } else if (sub === "list") {
         const reg = loadRegistry();
         for (const s of reg.shares) {

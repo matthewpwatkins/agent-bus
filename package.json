@@ -19,5 +19,5 @@
     "test": "npm run build && node --test \"dist-test/test/*.test.js\""
   },
   "type": "module",
-  "version": "0.1.0"
+  "version": "0.1.1"
 }

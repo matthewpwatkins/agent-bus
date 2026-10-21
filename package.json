@@ -1,0 +1,23 @@
+{
+  "bin": {
+    "agentbus": "dist/cli.js"
+  },
+  "description": "A store-and-forward message bus between personal AI agents (e.g. two partners' Muse agents), transported by Syncthing. Pairwise shares, plain-markdown messages, event-driven wake-up.",
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "name": "agent-bus",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "pretest": "tsc -p tsconfig.test.json",
+    "start": "node dist/cli.js",
+    "test": "npm run build && node --test \"dist-test/test/*.test.js\""
+  },
+  "type": "module",
+  "version": "0.1.0"
+}

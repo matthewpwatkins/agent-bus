@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { binDir, syncthingHome } from "./config.js";
 import { loadProfile, relayAddressFor } from "./network.js";
@@ -27,7 +28,12 @@ interface StConfig {
  * and using a peer's ID as your own silently breaks folder registration.
  */
 export function ownDeviceId(home = syncthingHome()): string {
-  const out = execFileSync(syncthingBinary(), ["device-id", "-H", home], { encoding: "utf8" });
+  // Syncthing's binary panics ("Failed to get user home dir") when HOME is
+  // unset -- e.g. under a systemd unit -- so always pass it explicitly.
+  const out = execFileSync(syncthingBinary(), ["device-id", "-H", home], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: process.env.HOME ?? os.homedir() },
+  });
   const id = out.trim().split("\n")[0];
   if (!/^[A-Z2-7-]{50,}$/.test(id)) throw new Error(`Unexpected device-id output: ${out}`);
   return id;
@@ -47,7 +53,10 @@ export function ensureIdentity(): void {
   const home = syncthingHome();
   if (fs.existsSync(configXmlPath(home))) return;
   fs.mkdirSync(home, { recursive: true });
-  const res = spawnSync(syncthingBinary(), ["generate", `--home=${home}`], { encoding: "utf8" });
+  const res = spawnSync(syncthingBinary(), ["generate", `--home=${home}`], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: process.env.HOME ?? os.homedir() },
+  });
   if (res.status !== 0) {
     throw new Error(`syncthing generate failed: ${res.stderr || res.stdout}`);
   }

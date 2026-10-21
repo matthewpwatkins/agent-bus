@@ -48,6 +48,7 @@ Description=Syncthing (Agent Bus)
 After=network.target
 
 [Service]
+Environment=HOME=${os.homedir()}
 ExecStart=${syncthingBinary()} serve --home=${syncthingHome()} --no-browser --no-restart
 Restart=on-failure
 RestartSec=5
@@ -84,6 +85,7 @@ Description=Agent Bus listener (${share.name})
 After=agentbus-syncthing.service network.target
 
 [Service]
+Environment=HOME=${os.homedir()}
 Environment=AGENTBUS_HOME=${agentbusHome()}
 Environment=AGENTBUS_SYNCTHING_HOME=${syncthingHome()}
 ExecStart=${process.execPath} ${cliJsPath()} listen --share ${share.name}
